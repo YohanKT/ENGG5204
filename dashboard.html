@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ENGG5204 — Management Skills Dashboard | Yohan</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --navy: #1F3864; --steel: #2E5FA3;
+    --yohan: #1764BE; --jivin: #0E8C50; --shwetha: #BE3C1E;
+    --lite: #EEF3FB; --mid: #C5D5ED; --bg: #F4F7FC;
+    --card: #ffffff; --text: #1a1a2e; --sub: #555; --border: #DDE6F0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-width: 320px; }
+
+  .header { background: linear-gradient(135deg, var(--navy) 0%, var(--steel) 100%); color: white; padding: 24px 32px 20px; box-shadow: 0 2px 16px rgba(30,60,100,0.18); }
+  .header h1 { font-size: clamp(1.1rem, 2.5vw, 1.6rem); font-weight: 700; letter-spacing: -0.3px; }
+  .header p  { font-size: 0.88rem; opacity: 0.8; margin-top: 4px; }
+  .header-meta { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+  .pill { background: rgba(255,255,255,0.15); border-radius: 20px; padding: 3px 12px; font-size: 0.78rem; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  /* ── Tabs: scrollable, never overflow ── */
+  .tabs-wrapper { background: white; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
+  .tabs { display: flex; overflow-x: auto; overflow-y: visible; scrollbar-width: thin; scrollbar-color: var(--mid) transparent; -webkit-overflow-scrolling: touch; padding: 0 8px; }
+  .tabs::-webkit-scrollbar { height: 3px; }
+  .tabs::-webkit-scrollbar-thumb { background: var(--mid); border-radius: 2px; }
+  .tab { padding: 12px 14px; font-size: 0.8rem; font-weight: 600; color: var(--sub); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; flex-shrink: 0; transition: all 0.15s; user-select: none; }
+  .tab:hover { color: var(--steel); background: var(--lite); }
+  .tab.active { color: var(--steel); border-bottom-color: var(--steel); background: var(--lite); }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .score-card { background: var(--card); border-radius: 12px; padding: 18px 20px; border-left: 4px solid var(--steel); box-shadow: 0 1px 8px rgba(0,0,0,0.06); transition: transform 0.15s; }
+  .score-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+  .score-card .label { font-size: 0.74rem; font-weight: 600; color: var(--sub); text-transform: uppercase; letter-spacing: 0.5px; }
+  .score-card .value { font-size: 2rem; font-weight: 800; color: var(--navy); line-height: 1.1; margin: 5px 0 2px; }
+  .score-card .sub { font-size: 0.76rem; color: var(--sub); }
+  .score-card.yohan { border-left-color: var(--yohan); }
+  .score-card.jivin { border-left-color: var(--jivin); }
+  .score-card.shwetha { border-left-color: var(--shwetha); }
+  .score-card.highlight { background: linear-gradient(135deg, #EEF3FB, #D8E8FF); }
+
+  .chart-card { background: var(--card); border-radius: 14px; padding: 22px 24px; margin-bottom: 22px; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
+  .chart-card h3 { font-size: 0.96rem; font-weight: 700; color: var(--navy); margin-bottom: 3px; }
+  .chart-card p.desc { font-size: 0.8rem; color: var(--sub); margin-bottom: 18px; }
+  .chart-wrap { position: relative; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 760px) { .two-col { grid-template-columns: 1fr; } }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.79rem; font-weight: 600; color: var(--sub); }
+  .legend-swatch { width: 13px; height: 13px; border-radius: 3px; }
+
+  /* Heatmap */
+  .heatmap { display: grid; grid-template-columns: 2fr repeat(6, 1fr); gap: 2px; }
+  .hm-hdr { background: var(--navy); color: white; padding: 7px 5px; font-size: 0.69rem; font-weight: 700; text-align: center; border-radius: 4px; }
+  .hm-lbl { padding: 7px 9px; font-size: 0.76rem; color: var(--text); background: var(--lite); border-radius: 4px; display: flex; align-items: center; }
+  .hm-cell { border-radius: 4px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.82rem; color: white; min-height: 34px; }
+
+  /* EI grid */
+  .ei-grid { display: grid; grid-template-columns: 1fr repeat(3, 80px); gap: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 0.79rem; }
+  .ei-hdr { background: var(--navy); color: white; padding: 9px 10px; font-weight: 700; font-size: 0.75rem; }
+  .ei-label { padding: 7px 10px; border-top: 1px solid var(--border); font-size: 0.78rem; }
+  .ei-cell { padding: 7px 10px; border-top: 1px solid var(--border); text-align: center; font-weight: 700; }
+  .ei-cell.zero { color: #C0392B; }
+  .ei-cell.full { color: #0E8C50; }
+  .ei-cell.half { color: #BA7517; }
+  .ei-row-even .ei-label, .ei-row-even .ei-cell { background: var(--lite); }
+
+  .insight { background: linear-gradient(135deg, #EEF3FB, #E0ECFF); border-left: 4px solid var(--steel); border-radius: 0 10px 10px 0; padding: 13px 16px; margin-bottom: 14px; }
+  .insight .title { font-weight: 700; font-size: 0.86rem; color: var(--navy); margin-bottom: 3px; }
+  .insight p { font-size: 0.81rem; color: var(--sub); line-height: 1.6; }
+
+  .summary-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .summary-table th { background: var(--navy); color: white; padding: 9px 12px; text-align: left; font-size: 0.77rem; }
+  .summary-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .summary-table tr:nth-child(even) td { background: var(--lite); }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; }
+  .badge.top { background: #D4EDDA; color: #155724; }
+  .badge.second { background: #CCE5FF; color: #004085; }
+  .badge.low { background: #F8D7DA; color: #721C24; }
+
+  footer { text-align: center; padding: 20px; font-size: 0.75rem; color: #aaa; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ENGG5204 — Management Skills Assessment Dashboard</h1>
+  <p>Individual Self-Reflection Report &nbsp;|&nbsp; Five Diagnostic Tools &nbsp;|&nbsp; Yohan, Jivin &amp; Shwetha</p>
+  <div class="header-meta">
+    <div class="pill"><span class="dot" style="background:#1764BE"></span>Yohan</div>
+    <div class="pill"><span class="dot" style="background:#0E8C50"></span>Jivin</div>
+    <div class="pill"><span class="dot" style="background:#BE3C1E"></span>Shwetha</div>
+    <div class="pill" style="background:rgba(255,255,255,0.08)">5 Diagnostic Tools</div>
+  </div>
+</div>
+
+<div class="tabs-wrapper">
+  <div class="tabs" id="tabBar">
+    <div class="tab active" onclick="showTab('overview',this)">📊 Overview</div>
+    <div class="tab" onclick="showTab('pams',this)">Tool 1 — PAMS</div>
+    <div class="tab" onclick="showTab('comms',this)">Tool 2 — Communication</div>
+    <div class="tab" onclick="showTab('sa',this)">Tool 3 — Self-Awareness</div>
+    <div class="tab" onclick="showTab('te',this)">Tool 4 — Team Effectiveness</div>
+    <div class="tab" onclick="showTab('ei',this)">Tool 5 — EI</div>
+  </div>
+</div>
+
+<!-- ════════ OVERVIEW ════════ -->
+<div id="tab-overview" class="section active">
+<div class="container">
+  <div class="score-grid">
+    <div class="score-card yohan highlight">
+      <div class="label">Yohan — Comm. Skills</div>
+      <div class="value">50<span style="font-size:1rem;font-weight:500">/60</span></div>
+      <div class="sub">Excellent band · SA Post: 54 · EI: 60</div>
+    </div>
+    <div class="score-card jivin">
+      <div class="label">Jivin — Best Problem Solver</div>
+      <div class="value">56<span style="font-size:1rem;font-weight:500">/72</span></div>
+      <div class="sub">Comm: 45 · SA Post: 56 · EI: 60</div>
+    </div>
+    <div class="score-card shwetha">
+      <div class="label">Shwetha — Best EI Score</div>
+      <div class="value">95<span style="font-size:1rem;font-weight:500">/120</span></div>
+      <div class="sub">Comm: 44 · SA Post: 59 · EI: Top quartile</div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Cross-Instrument Performance — All 5 Tools (% of maximum)</h3>
+    <p class="desc">Each instrument normalised to percentage of maximum possible score. Hover for exact values.</p>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#1764BE"></div>Yohan</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#0E8C50"></div>Jivin</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#BE3C1E"></div>Shwetha</div>
+    </div>
+    <div class="chart-wrap" style="height:260px"><canvas id="overviewChart"></canvas></div>
+  </div>
+  <div class="two-col">
+    <div class="insight">
+      <div class="title">🏆 Yohan's Standout Strengths</div>
+      <p>Highest Communication Skills (50/60 — Excellent band). Highest Empowering &amp; Delegating (42) and Team Leadership (26) of all three members. Strongest emotional self-monitoring — SA item 9: 6/6, highest of any team member.</p>
+    </div>
+    <div class="insight">
+      <div class="title">⚠️ Priority Development Areas</div>
+      <p>Lowest Creative Problem Solving (16/30) and Rational Problem Solving (10/18). Lowest Empowering sub-score (17). Team Processes and Passion &amp; Commitment both below midpoint (2.86/5.0). EI item 1, 7, 8, 9 all scored zero.</p>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>PAMS Radar Profile — All Three Members (Normalised to Instrument Maximum)</h3>
+    <p class="desc">Each axis = one PAMS cluster scaled to its maximum. Yohan leads on Team Leadership and Empowering &amp; Delegating. Jivin leads on Problem Solving.</p>
+    <div class="chart-wrap" style="height:380px"><canvas id="radarChart"></canvas></div>
+  </div>
+</div>
+</div>
+
+<!-- ════════ PAMS ════════ -->
+<div id="tab-pams" class="section">
+<div class="container">
+  <div class="chart-card">
+    <h3>PAMS — All 9 Cluster Scores (raw)</h3>
+    <p class="desc">Click legend items to toggle visibility. Yohan leads on Empowering &amp; Delegating and Team Leadership; Jivin leads on Problem Solving.</p>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:#1764BE"></div>Yohan</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#0E8C50"></div>Jivin</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#BE3C1E"></div>Shwetha</div>
+    </div>
+    <div class="chart-wrap" style="height:360px"><canvas id="pamsBar"></canvas></div>
+  </div>
+  <div class="two-col">
+    <div class="chart-card">
+      <h3>Problem Solving Sub-dimensions</h3>
+      <p class="desc">Yohan trails both comparators across all three sub-domains simultaneously.</p>
+      <div class="chart-wrap" style="height:230px"><canvas id="problemSolving"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Empowering vs. Delegating</h3>
+      <p class="desc">Yohan leads overall (42) but has the lowest Empowering sub-score (17).</p>
+      <div class="chart-wrap" style="height:230px"><canvas id="empowerChart"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>All Sub-dimensions — Normalised (% of max)</h3>
+    <p class="desc">Reveals intra-cluster asymmetries hidden by totals.</p>
+    <div id="progWrap" style="margin-top:10px"></div>
+  </div>
+</div>
+</div>
+
+<!-- ════════ COMMS ════════ -->
+<div id="tab-comms" class="section">
+<div class="container">
+  <div class="score-grid">
+    <div class="score-card yohan highlight">
+      <div class="label">Yohan Total</div>
+      <div class="value">50<span style="font-size:1rem;font-weight:500">/60</span></div>
+      <div class="sub">Excellent communicator band (50–60)</div>
+    </div>
+    <div class="score-card jivin">
+      <div class="label">Jivin Total</div>
+      <div class="value">45<span style="font-size:1rem;font-weight:500">/60</span></div>
+      <div class="sub">Not too bad band (40–50)</div>
+    </div>
+    <div class="score-card shwetha">
+      <div class="label">Shwetha Total</div>
+      <div class="value">44<span style="font-size:1rem;font-weight:500">/60</span></div>
+      <div class="sub">Not too bad band (40–50)</div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Communication Skills — Item-by-Item (Q1–Q15, scale 1–4)</h3>
+    <p class="desc">Yohan leads on receptive dimensions (items 5, 10, 14 = patience, silence, sensing). Jivin leads on assertive dimensions (items 7, 11, 12). Hover for item descriptions.</p>
+    <div class="chart-wrap" style="height:340px"><canvas id="commsChart"></canvas></div>
+  </div>
+</div>
+</div>
+
+<!-- ════════ SELF-AWARENESS ════════ -->
+<div id="tab-sa" class="section">
+<div class="container">
+  <div class="score-grid">
+    <div class="score-card yohan">
+      <div class="label">Yohan Pre → Post</div>
+      <div class="value">44 → 54</div>
+      <div class="sub">+10 gain · 2nd quartile</div>
+    </div>
+    <div class="score-card jivin">
+      <div class="label">Jivin Pre → Post</div>
+      <div class="value">45 → 56</div>
+      <div class="sub">+11 gain · Top quartile</div>
+    </div>
+    <div class="score-card shwetha highlight">
+      <div class="label">Shwetha Pre → Post</div>
+      <div class="value">45 → 59</div>
+      <div class="sub">+14 gain · Top quartile (largest)</div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Self-Awareness — All 11 Items: Pre (dashed) vs Post (solid)</h3>
+    <p class="desc">Spider chart. Yohan's item 9 (seldom anxious) is the highest of any member. Item 7 (principles) is the only item unchanged for Yohan.</p>
+    <div class="chart-wrap" style="height:400px"><canvas id="saRadar"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Item Heatmap — All 11 SA Items Pre and Post (scale 1–6)</h3>
+    <p class="desc">Darker blue = higher score. ⚠ = unchanged. ★ = highest of group.</p>
+    <div class="heatmap" style="margin-top:10px">
+      <div class="hm-hdr" style="border-radius:8px 0 0 0">Item</div>
+      <div class="hm-hdr">Yoh Pre</div><div class="hm-hdr">Yoh Post</div>
+      <div class="hm-hdr">Jiv Pre</div><div class="hm-hdr">Jiv Post</div>
+      <div class="hm-hdr">Shw Pre</div><div class="hm-hdr" style="border-radius:0 8px 0 0">Shw Post</div>
+      <div id="heatmapWrap" style="display:contents"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ════════ TEAM EFFECTIVENESS ════════ -->
+<div id="tab-te" class="section">
+<div class="container">
+  <div class="score-grid">
+    <div class="score-card yohan">
+      <div class="label">Yohan Overall</div>
+      <div class="value">3.29<span style="font-size:1rem">/5.0</span></div>
+      <div class="sub">Weakest: Processes &amp; Passion (2.86)</div>
+    </div>
+    <div class="score-card jivin highlight">
+      <div class="label">Jivin Overall</div>
+      <div class="value">3.64<span style="font-size:1rem">/5.0</span></div>
+      <div class="sub">Highest overall score</div>
+    </div>
+    <div class="score-card shwetha">
+      <div class="label">Shwetha Overall</div>
+      <div class="value">3.58<span style="font-size:1rem">/5.0</span></div>
+      <div class="sub">Leads on Relationships &amp; Goals</div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Team Effectiveness — All 8 Dimensions (/5.0)</h3>
+    <p class="desc">Horizontal grouped bars. Dimensions below 3.0 (midpoint) are highlighted for Yohan. All three members score equally on Skills &amp; Learning (3.71).</p>
+    <div class="chart-wrap" style="height:340px"><canvas id="teChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Dimension Rankings — Who Leads on Each?</h3>
+    <p class="desc">Yohan leads on Roles only. Largest gaps are in Team Relationships and Passion &amp; Commitment.</p>
+    <table class="summary-table">
+      <thead><tr><th>Dimension</th><th style="color:#9DC8FF">Yohan</th><th style="color:#9DE8B8">Jivin</th><th style="color:#FFBBAA">Shwetha</th><th>Leader</th><th>Yohan Gap</th></tr></thead>
+      <tbody id="teDimTable"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<!-- ════════ EI ════════ -->
+<div id="tab-ei" class="section">
+<div class="container">
+  <div class="score-grid">
+    <div class="score-card yohan">
+      <div class="label">Yohan EI Total</div>
+      <div class="value">60<span style="font-size:1rem">/120</span></div>
+      <div class="sub">2nd quartile · 4 zero-score items</div>
+    </div>
+    <div class="score-card jivin">
+      <div class="label">Jivin EI Total</div>
+      <div class="value">60<span style="font-size:1rem">/120</span></div>
+      <div class="sub">2nd quartile · different zero pattern</div>
+    </div>
+    <div class="score-card shwetha highlight">
+      <div class="label">Shwetha EI Total</div>
+      <div class="value">95<span style="font-size:1rem">/120</span></div>
+      <div class="sub">Top quartile · only 2 zero-score items</div>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="chart-card">
+      <h3>EI Score per Item (/10)</h3>
+      <p class="desc">Red bars = scored 0. Green = 10. Despite equal totals, Yohan and Jivin have qualitatively different zero patterns.</p>
+      <div class="chart-wrap" style="height:300px"><canvas id="eiBar"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>EI by Dimension — Yohan Only</h3>
+      <p class="desc">Yohan scores full marks on Control and Response but near-zero on Awareness and Diagnosis.</p>
+      <div class="chart-wrap" style="height:300px"><canvas id="eiDimChart"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Item-by-Item Detail — Answer and Score</h3>
+    <p class="desc">0 = missed opportunity &nbsp;|&nbsp; 5 = partial &nbsp;|&nbsp; 10 = optimal response</p>
+    <div class="ei-grid">
+      <div class="ei-hdr">Scenario</div>
+      <div class="ei-hdr">Yohan</div>
+      <div class="ei-hdr">Jivin</div>
+      <div class="ei-hdr">Shwetha</div>
+      <div id="eiTableWrap" style="display:contents"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<footer>ENGG5204 Individual Reflection Report &nbsp;&middot;&nbsp; Yohan &nbsp;&middot;&nbsp; Jivin &nbsp;&middot;&nbsp; Shwetha &nbsp;&middot;&nbsp; Built with Chart.js</footer>
+
+<script>
+function showTab(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+  // Scroll active tab into view
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+const Y='#1764BE', J='#0E8C50', S='#BE3C1E';
+const YA='rgba(23,100,190,0.72)', JA='rgba(14,140,80,0.72)', SA_='rgba(190,60,30,0.72)';
+const opts0 = { responsive:true, maintainAspectRatio:false };
+
+// Overview chart
+new Chart(document.getElementById('overviewChart'), {
+  type:'bar', options:{...opts0,
+    plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw.toFixed(1)}%`}}},
+    scales:{y:{min:40,max:100,ticks:{callback:v=>v+'%'},grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false}}}},
+  data:{labels:['PAMS (/432)','Comm Skills (/60)','SA Post (/66)','Team Eff (/5)','EI (/120)'],datasets:[
+    {label:'Yohan', data:[75.7,83.3,81.8,65.7,50.0], backgroundColor:YA, borderColor:Y, borderWidth:2, borderRadius:5},
+    {label:'Jivin',  data:[81.5,75.0,84.8,72.9,50.0], backgroundColor:JA, borderColor:J, borderWidth:2, borderRadius:5},
+    {label:'Shwetha',data:[76.2,73.3,89.4,71.5,79.2], backgroundColor:SA_,borderColor:S, borderWidth:2, borderRadius:5},
+  ]}
+});
+
+// Radar
+const rLbls=['Self-awareness','Managing Stress','Problem Solving','Communicating','Gaining Power','Motivating','Conflict Mgmt','Empowering','Team Leadership'];
+new Chart(document.getElementById('radarChart'), {
+  type:'radar', options:{...opts0,
+    plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw.toFixed(1)}%`}}},
+    scales:{r:{min:40,max:100,ticks:{callback:v=>v+'%',font:{size:9}},pointLabels:{font:{size:10,weight:'bold'}},grid:{color:'rgba(0,0,0,0.08)'}}}},
+  data:{labels:rLbls,datasets:[
+    {label:'Yohan', data:[63.3,66.7,56.9,75.9,62.5,74.1,70.4,77.8,86.7], borderColor:Y,  backgroundColor:'rgba(23,100,190,0.10)', pointBackgroundColor:Y,  borderWidth:2.5, pointRadius:4},
+    {label:'Jivin',  data:[73.3,63.9,77.8,72.2,68.8,75.9,70.4,72.2,80.0], borderColor:J,  backgroundColor:'rgba(14,140,80,0.10)',  pointBackgroundColor:J,  borderWidth:2.5, pointRadius:4},
+    {label:'Shwetha',data:[53.3,69.4,72.2,74.1,70.8,79.6,72.2,64.8,83.3], borderColor:S,  backgroundColor:'rgba(190,60,30,0.08)', pointBackgroundColor:S,  borderWidth:2.5, pointRadius:4},
+  ]}
+});
+
+// PAMS bar
+new Chart(document.getElementById('pamsBar'), {
+  type:'bar', options:{...opts0, plugins:{legend:{position:'top'}}, scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false}}}},
+  data:{labels:['Self-\nawareness','Managing\nStress','Problem\nSolving','Communicating','Power &\nInfluence','Motivating\nOthers','Managing\nConflict','Empowering &\nDelegating','Team\nLeadership'],datasets:[
+    {label:'Yohan', data:[19,24,41,41,30,40,38,42,26], backgroundColor:YA, borderColor:Y, borderWidth:2, borderRadius:5},
+    {label:'Jivin',  data:[22,23,56,39,33,41,38,39,24], backgroundColor:JA, borderColor:J, borderWidth:2, borderRadius:5},
+    {label:'Shwetha',data:[16,25,52,40,34,43,39,35,25], backgroundColor:SA_,borderColor:S, borderWidth:2, borderRadius:5},
+  ]}
+});
+
+// Problem solving
+new Chart(document.getElementById('problemSolving'), {
+  type:'bar', options:{...opts0, plugins:{legend:{position:'top'}}, scales:{y:{beginAtZero:true}, x:{grid:{display:false}}}},
+  data:{labels:['Rational\n(max 18)','Creative\n(max 30)','Fostering\nInnovation (24)'],datasets:[
+    {label:'Yohan', data:[10,16,17], backgroundColor:YA, borderColor:Y, borderWidth:2, borderRadius:5},
+    {label:'Jivin',  data:[15,24,17], backgroundColor:JA, borderColor:J, borderWidth:2, borderRadius:5},
+    {label:'Shwetha',data:[10,21,21], backgroundColor:SA_,borderColor:S, borderWidth:2, borderRadius:5},
+  ]}
+});
+
+// Empower
+new Chart(document.getElementById('empowerChart'), {
+  type:'bar', options:{...opts0, plugins:{legend:{position:'top'}}, scales:{y:{beginAtZero:true}, x:{grid:{display:false}}}},
+  data:{labels:['Empowering\n(max 24)','Delegating\n(max 30)'],datasets:[
+    {label:'Yohan', data:[17,25], backgroundColor:YA, borderColor:Y, borderWidth:2, borderRadius:5},
+    {label:'Jivin',  data:[20,19], backgroundColor:JA, borderColor:J, borderWidth:2, borderRadius:5},
+    {label:'Shwetha',data:[22,26], backgroundColor:SA_,borderColor:S, borderWidth:2, borderRadius:5},
+  ]}
+});
+
+// Sub-dimension progress bars
+const progData = [
+  ["Self-disclosure",10,8,12,18],["Awareness of self",9,14,12,18],
+  ["Eliminating stressors",9,8,9,12],["Developing resiliency",8,7,10,12],["Short-term coping",7,8,10,12],
+  ["Rational prob. solving",10,15,10,18],["Creative prob. solving",16,24,21,30],["Fostering innovation",17,17,21,24],
+  ["Coaching & counselling",11,8,10,12],["Eff. negative feedback",11,13,15,18],["Communicating (29-32)",19,18,15,24],
+  ["Gaining power",19,22,28,30],["Exercising influence",11,11,9,18],
+  ["Initiating conflict",14,13,14,18],["Responding conflict",11,13,13,18],["Mediating",13,12,14,18],
+  ["Empowering",17,20,22,24],["Delegating",25,19,26,30],
+];
+const wrap = document.getElementById('progWrap');
+progData.forEach(([label, y, j, s, mx]) => {
+  const yp=Math.round(y/mx*100), jp=Math.round(j/mx*100), sp=Math.round(s/mx*100);
+  wrap.innerHTML += `<div style="margin-bottom:5px;display:grid;grid-template-columns:160px 1fr 50px;gap:8px;align-items:center">
+    <div style="font-size:0.76rem;color:var(--sub);text-align:right">${label}</div>
+    <div style="display:flex;gap:2px;flex-direction:column">
+      <div style="background:#E8EEF8;border-radius:20px;height:15px;overflow:hidden"><div style="height:100%;width:${yp}%;background:#1764BE;border-radius:20px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:0.62rem;font-weight:700;color:white;min-width:16px">${y}</div></div>
+      <div style="background:#E8EEF8;border-radius:20px;height:15px;overflow:hidden"><div style="height:100%;width:${jp}%;background:#0E8C50;border-radius:20px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:0.62rem;font-weight:700;color:white;min-width:16px">${j}</div></div>
+      <div style="background:#E8EEF8;border-radius:20px;height:15px;overflow:hidden"><div style="height:100%;width:${sp}%;background:#BE3C1E;border-radius:20px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:0.62rem;font-weight:700;color:white;min-width:16px">${s}</div></div>
+    </div>
+    <div style="font-size:0.7rem;color:var(--sub)">max ${mx}</div></div>`;
+});
+
+// Comms chart
+new Chart(document.getElementById('commsChart'), {
+  type:'bar', options:{...opts0,
+    plugins:{legend:{position:'top'}, tooltip:{callbacks:{title:ctx=>{const qs=['Watch closely','Put energy in','Best way understood','Attend to speed','Sense other person','Use their worldview','Plan what to say','Plan presentation','Adjust style','Comfortable with silence','Feel good about self','Give sense of worth','Curious about them','Patient','Reflect back']; return `Q${ctx[0].dataIndex+1}: ${qs[ctx[0].dataIndex]}`;} }}},
+    scales:{y:{min:0,max:4,ticks:{stepSize:1},grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false}}}},
+  data:{labels:['Q1','Q2','Q3','Q4','Q5','Q6','Q7','Q8','Q9','Q10','Q11','Q12','Q13','Q14','Q15'],datasets:[
+    {label:'Yohan', data:[3,3,4,2,4,3,3,3,4,4,3,3,3,4,4], backgroundColor:YA, borderColor:Y, borderWidth:2, borderRadius:4},
+    {label:'Jivin',  data:[3,2,2,3,3,3,4,3,3,2,4,4,3,3,3], backgroundColor:JA, borderColor:J, borderWidth:2, borderRadius:4},
+    {label:'Shwetha',data:[3,4,2,3,3,3,3,4,4,3,3,3,3,3,3], backgroundColor:SA_,borderColor:S, borderWidth:2, borderRadius:4},
+  ]}
+});
+
+// SA spider
+const saLbls=['Seek feedback','Non-defensive','Self-disclose','Info style','Interpers. needs','Cope w ambiguity','Principles ⚠','In charge','Seldom anxious ★','Conflict aware','Close relationship'];
+new Chart(document.getElementById('saRadar'), {
+  type:'radar', options:{...opts0,
+    plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw}/6`}}},
+    scales:{r:{min:1,max:6,ticks:{stepSize:1,font:{size:9}},pointLabels:{font:{size:10,weight:'bold'}},grid:{color:'rgba(0,0,0,0.08)'}}}},
+  data:{labels:saLbls,datasets:[
+    {label:'Yohan Pre',  data:[5,4,4,4,3,3,4,4,5,5,3], borderColor:Y, backgroundColor:'rgba(23,100,190,0.04)', borderWidth:1.5, borderDash:[5,3], pointRadius:3, pointBackgroundColor:Y},
+    {label:'Yohan Post', data:[5,5,5,5,5,5,4,4,6,6,4], borderColor:Y, backgroundColor:'rgba(23,100,190,0.14)', borderWidth:2.5, pointRadius:4, pointBackgroundColor:Y},
+    {label:'Jivin Post',  data:[5,5,5,6,5,5,6,5,4,5,5], borderColor:J, backgroundColor:'rgba(14,140,80,0.07)', borderWidth:2, pointRadius:3, pointBackgroundColor:J},
+    {label:'Shwetha Post',data:[5,5,6,6,6,5,6,5,4,5,6], borderColor:S, backgroundColor:'rgba(190,60,30,0.05)', borderWidth:2, pointRadius:3, pointBackgroundColor:S},
+  ]}
+});
+
+// SA heatmap
+const saItems=[
+  ["1. Seek info from others",5,5,4,5,4,5],["2. Non-defensive feedback",4,5,3,5,3,5],
+  ["3. Self-disclose beliefs",4,5,4,5,5,6],["4. Info-gathering style",4,5,5,6,4,6],
+  ["5. Interpersonal needs",3,5,4,5,5,6],["6. Cope with ambiguity",3,5,4,5,4,5],
+  ["7. Personal principles ⚠",4,4,5,6,5,6],["8. Feel in charge",4,4,4,5,3,5],
+  ["9. Seldom anxious ★",5,6,4,4,3,4],["10. Conflict origins",5,6,5,5,4,5],
+  ["11. Close relationship",3,4,4,5,5,6]
+];
+const heatC=['','#D6E8FF','#AACAFF','#7DACF5','#5090E8','#2672D0','#1A4E8C'];
+const hmWrap = document.getElementById('heatmapWrap');
+saItems.forEach(([lbl,...vals],i)=>{
+  const cls=i%2===0?'':'';
+  hmWrap.innerHTML+=`<div class="hm-lbl">${lbl}</div>`+vals.map(v=>`<div class="hm-cell" style="background:${heatC[v]};color:${v>=4?'white':'#333'}">${v}</div>`).join('');
+});
+
+// TE chart
+new Chart(document.getElementById('teChart'), {
+  type:'bar', options:{indexAxis:'y', ...opts0,
+    plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw.toFixed(2)}/5`}}},
+    scales:{x:{min:1,max:5,grid:{color:'rgba(0,0,0,0.05)'}},y:{grid:{display:false}}}},
+  data:{labels:['Purpose & Goals','Roles','Team Processes','Team Relationships','Intergroup Relations','Problem Solving','Passion & Commitment','Skills & Learning'],datasets:[
+    {label:'Yohan', data:[3.43,3.86,2.86,3.00,3.43,3.14,2.86,3.71], backgroundColor:YA, borderColor:Y, borderWidth:2, borderRadius:3},
+    {label:'Jivin',  data:[3.86,3.29,3.57,3.86,3.43,3.71,3.71,3.71], backgroundColor:JA, borderColor:J, borderWidth:2, borderRadius:3},
+    {label:'Shwetha',data:[4.00,3.29,3.57,4.00,3.29,3.29,3.85,3.71], backgroundColor:SA_,borderColor:S, borderWidth:2, borderRadius:3},
+  ]}
+});
+
+// TE dim table
+const teDims=[
+  ["Purpose & Goals",3.43,3.86,4.00,"Shwetha"],["Roles",3.86,3.29,3.29,"Yohan ★"],
+  ["Team Processes",2.86,3.57,3.57,"Jivin/Shwetha"],["Team Relationships",3.00,3.86,4.00,"Shwetha"],
+  ["Intergroup Relations",3.43,3.43,3.29,"Yohan/Jivin"],["Problem Solving",3.14,3.71,3.29,"Jivin"],
+  ["Passion & Commitment",2.86,3.71,3.85,"Shwetha"],["Skills & Learning",3.71,3.71,3.71,"Equal"]
+];
+const tb=document.getElementById('teDimTable');
+teDims.forEach(([dim,y,j,s,leader])=>{
+  const max=Math.max(y,j,s), gap=(y-max).toFixed(2);
+  const badge=gap==="0.00"?`<span class='badge top'>Leader</span>`:`<span class='badge ${parseFloat(gap)<-0.5?'low':'second'}'>${gap}</span>`;
+  tb.innerHTML+=`<tr><td>${dim}</td><td style="font-weight:700;color:#1764BE">${y}</td><td style="font-weight:700;color:#0E8C50">${j}</td><td style="font-weight:700;color:#BE3C1E">${s}</td><td>${leader}</td><td>${badge}</td></tr>`;
+});
+
+// EI bar
+new Chart(document.getElementById('eiBar'), {
+  type:'bar', options:{...opts0, plugins:{legend:{position:'top'}}, scales:{y:{min:0,max:10,ticks:{stepSize:5},grid:{color:'rgba(0,0,0,0.05)'}},x:{grid:{display:false}}}},
+  data:{labels:['Q1','Q2','Q3','Q4','Q5','Q6','Q7','Q8','Q9','Q10','Q11','Q12'],datasets:[
+    {label:'Yohan', data:[0,5,10,10,10,5,0,0,0,10,0,10], backgroundColor:YA, borderColor:Y, borderWidth:2, borderRadius:4},
+    {label:'Jivin',  data:[10,0,5,0,5,5,10,0,10,0,5,10],  backgroundColor:JA, borderColor:J, borderWidth:2, borderRadius:4},
+    {label:'Shwetha',data:[10,10,10,10,10,0,5,10,10,10,0,10], backgroundColor:SA_,borderColor:S, borderWidth:2, borderRadius:4},
+  ]}
+});
+
+// EI dimension polar
+new Chart(document.getElementById('eiDimChart'), {
+  type:'polarArea', options:{...opts0,
+    plugins:{legend:{position:'top'},tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw}/30`}}},
+    scales:{r:{min:0,max:30,ticks:{stepSize:10,font:{size:9}}}}},
+  data:{labels:['Awareness (Q1,Q5,Q9)','Control (Q2,Q6,Q10)','Diagnosis (Q3,Q7,Q11)','Response (Q4,Q8,Q12)'],datasets:[{
+    data:[10,20,10,20],
+    backgroundColor:['rgba(23,100,190,0.55)','rgba(23,100,190,0.40)','rgba(23,100,190,0.25)','rgba(23,100,190,0.70)'],
+    borderColor:'#1764BE', borderWidth:2
+  }]}
+});
+
+// EI table
+const eiData=[
+  ["1. When I get really upset…","c/0","a/10","a/10"],["2. Colleague takes credit…","b/5","c/0","b/10"],
+  ["3. Person doesn't respond…","b/10","b/5","b/10"],["4. Entering a social group…","b/10","c/0","b/10"],
+  ["5. On important issues…","b/10","b/5","b/10"],["6. Unwanted attraction…","b/5","b/5","c/0"],
+  ["7. Opposing views arguing…","c/0","a/10","b/5"],["8. Last-second performance…","a/0","c/0","c/10"],
+  ["9. Obligation vs. deadline…","b/0","a/10","c/10"],["10. Person yells at me…","c/10","c/0","c/10"],
+  ["11. Someone experienced loss…","a/0","b/5","a/0"],["12. Racist joke…","a/10","a/10","a/10"]
+];
+const eiWrap=document.getElementById('eiTableWrap');
+eiData.forEach(([scenario,y,j,s],i)=>{
+  const cls=i%2===0?'ei-row-even':'';
+  const sc=v=>{const n=parseInt(v.split('/')[1]);return `<div class="ei-cell ${n===0?'zero':n===10?'full':'half'} ${cls}">${v}</div>`;};
+  eiWrap.innerHTML+=`<div class="ei-label ${cls}">${scenario}</div>${sc(y)}${sc(j)}${sc(s)}`;
+});
+</script>
+</body>
+</html>
